@@ -19,7 +19,7 @@ import java.util.Map;
  */
 @Configuration
 @EnableConfigurationProperties(MultiDatasourceProperties.class)
-@ConditionalOnClass({ DataSource.class})
+@ConditionalOnClass({ DataSource.class, HikariDataSource.class})
 public class MultiDatasourceAutoConfiguration {
 
 
