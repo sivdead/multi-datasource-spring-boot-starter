@@ -1,11 +1,14 @@
 package com.sivdead.datasource;
 
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.jdbc.DataSourceBuilder;
+import org.springframework.boot.jdbc.metadata.DataSourcePoolMetadataProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.ClassUtils;
@@ -25,24 +28,39 @@ public class MultiDatasourceAutoConfiguration {
 
 
     @ConditionalOnMissingBean({DataSource.class})
-    @ConditionalOnProperty(prefix = "multi-datasource",name = "enable")
+    @ConditionalOnProperty(prefix = "multi-datasource", name = "enable")
     @Bean
-    public DataSource multiDatasource(MultiDatasourceProperties properties){
+    public DataSource multiDatasource(MultiDatasourceProperties properties) {
         DynamicDataSource dynamicDataSource = new DynamicDataSource();
-        Map<Object,Object> dataSourceMap = new Hashtable<>();
+        Map<Object, Object> dataSourceMap = new Hashtable<>();
         for (Map.Entry<String, DataSourceProperties> entry : properties.getDatasourceMap().entrySet()) {
-            dataSourceMap.put(entry.getKey(),createDatasource(entry.getValue()));
+            dataSourceMap.put(entry.getKey(), createDatasource(entry.getValue()));
         }
         dynamicDataSource.setTargetDataSources(dataSourceMap);
-        if(properties.getDefaultDatasource() != null){
+        if (properties.getDefaultDatasource() != null) {
             dynamicDataSource.setDefaultTargetDataSource(properties.getDefaultDatasource());
         }
 
         return dynamicDataSource;
     }
 
+    @Bean
+    public MultiDataSourceHealthIndicatorConfiguration dataSourceHealthIndicatorConfiguration(
+            ObjectProvider<Map<String, DataSource>> dataSources,
+            ObjectProvider<DataSourcePoolMetadataProvider> metadataProviders) {
+        return new MultiDataSourceHealthIndicatorConfiguration(dataSources, metadataProviders);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(
+            name = {"dbHealthIndicator"}
+    )
+    public HealthIndicator dbHealthIndicator(MultiDataSourceHealthIndicatorConfiguration dataSourceHealthIndicatorConfiguration) {
+        return dataSourceHealthIndicatorConfiguration.dbHealthIndicator();
+    }
+
     private DataSource createDatasource(DataSourceProperties properties) {
-        if (properties == null){
+        if (properties == null) {
             return null;
         }
         Class<? extends DataSource> datasourceType = properties.getType();
