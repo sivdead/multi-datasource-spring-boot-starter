@@ -1,1 +1,2 @@
-org.springframework.boot.autoconfigure.EnableAutoConfiguration=com.sivdead.datasource.MultiDatasourceAutoConfiguration
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+  com.sivdead.datasource.MultiDatasourceAutoConfiguration
