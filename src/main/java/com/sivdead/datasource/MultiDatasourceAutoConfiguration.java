@@ -51,16 +51,22 @@ public class MultiDatasourceAutoConfiguration implements InitializingBean {
 
     @ConditionalOnMissingBean({DataSource.class})
     @Bean
-    public DynamicDataSource multiDatasource(MultiDatasourceProperties properties) {
+    public DataSource multiDatasource(MultiDatasourceProperties properties) {
         DynamicDataSource dynamicDataSource = new DynamicDataSource();
-        Map<Object, Object> dataSourceMap = new Hashtable<>();
+        Hashtable<Object, Object> dataSourceMap = new Hashtable<>();
+        DataSource defaultDatasource = null;
         for (Map.Entry<String, DataSourceProperties> entry : properties.getDatasourceMap().entrySet()) {
             DataSource datasource = createDatasource(entry.getValue());
             dataSourceMap.put(entry.getKey(), datasource);
+            if (defaultDatasource == null) {
+                defaultDatasource = datasource;
+            }
         }
         dynamicDataSource.setTargetDataSources(dataSourceMap);
         if (properties.getDefaultDatasource() != null) {
-            dynamicDataSource.setDefaultTargetDataSource(properties.getDefaultDatasource());
+            dynamicDataSource.setDefaultTargetDataSource(dataSourceMap.get(properties.getDefaultDatasource()));
+        } else if (!dataSourceMap.isEmpty()) {
+            dynamicDataSource.setDefaultTargetDataSource(defaultDatasource);
         }
 
         return dynamicDataSource;
@@ -71,12 +77,17 @@ public class MultiDatasourceAutoConfiguration implements InitializingBean {
     @ConditionalOnMissingBean(
             name = {"dbHealthIndicator"}
     )
-    public HealthIndicator dbHealthIndicator(DynamicDataSource dataSource) {
-        HealthIndicatorRegistry registry = new DefaultHealthIndicatorRegistry();
-        dataSource.getTargetDataSources().forEach(
-                (name, source) ->
-                        registry.register((String) name, new DataSourceHealthIndicator((DataSource) source, getValidationQuery((DataSource) source))));
-        return new CompositeHealthIndicator(this.healthAggregator, registry);
+    public HealthIndicator dbHealthIndicator(DataSource dataSource) {
+        if (dataSource instanceof DynamicDataSource) {
+            DynamicDataSource dynamicDataSource = (DynamicDataSource) dataSource;
+            HealthIndicatorRegistry registry = new DefaultHealthIndicatorRegistry();
+            dynamicDataSource.getTargetDataSources().forEach(
+                    (name, source) ->
+                            registry.register((String) name, new DataSourceHealthIndicator((DataSource) source, getValidationQuery((DataSource) source))));
+            return new CompositeHealthIndicator(this.healthAggregator, registry);
+        } else {
+            return new DataSourceHealthIndicator(dataSource, getValidationQuery(dataSource));
+        }
     }
 
     private DataSource createDatasource(DataSourceProperties properties) {
